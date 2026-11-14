@@ -6,6 +6,10 @@ from models.ngram import NGramModel
 
 from prediction.trie import Trie
 
+from prediction.edit_distance import levenshtein_distance
+
+from prediction.suggestion_engine import SuggestionEngine
+
 # Locate dataset
 dataset_path = Path(__file__).parent / "dataset" / "training.txt"
 
@@ -78,6 +82,25 @@ trie = Trie()
 for word in model.unigram_counts:
     trie.insert(word)
 
+# Create unified suggestion engine
+engine = SuggestionEngine(model, trie)
+
+test_inputs = [
+    "I love ",
+    "I love pro",
+    "I love pythn"
+]
+
+for user_input in test_inputs:
+
+    print(f"\nINPUT: {user_input!r}")
+
+    suggestions = engine.suggest(user_input)
+
+    for suggestion_type, word, score in suggestions:
+
+        print(f"{suggestion_type}: {word} ({score})")
+
 # Test word completion
 prefix = "pro"
 
@@ -92,3 +115,33 @@ print("\nWORD COMPLETION")
 
 for word in suggestions[:5]:
     print(f"{word}: {model.unigram_counts[word]}")
+
+
+# Spelling correction
+
+input_word = "pythn"
+
+corrections = []
+
+for word in model.unigram_counts:
+
+    distance = levenshtein_distance(input_word, word)
+
+    if distance <= 2:
+
+        corrections.append(
+            (word, distance, model.unigram_counts[word])
+        )
+
+# Sort by edit distance, then word frequency
+corrections.sort(
+    key=lambda item: (item[1], -item[2])
+)
+
+print("\nSPELLING CORRECTIONS")
+
+for word, distance, frequency in corrections[:5]:
+
+    print(
+        f"{word}: distance={distance}, frequency={frequency}"
+    )
