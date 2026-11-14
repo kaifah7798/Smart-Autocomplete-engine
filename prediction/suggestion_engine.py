@@ -83,3 +83,45 @@ class SuggestionEngine:
             ("correction", word, distance)
             for word, distance, frequency in corrections[:limit]
         ]
+
+    def rank_suggestions(self, suggestions):
+
+     if not suggestions:
+        return []
+
+     max_frequency = max(
+        self.model.unigram_counts.values(),
+        default=1
+     )
+
+     ranked = []
+
+     for suggestion_type, word, score in suggestions:
+
+        if suggestion_type == "next_word":
+
+            rank_score = score
+
+        elif suggestion_type == "completion":
+
+            rank_score = score / max_frequency
+
+        elif suggestion_type == "correction":
+
+            distance = score
+            frequency = self.model.unigram_counts[word]
+
+            rank_score = (
+                (1 / (1 + distance)) *
+                (frequency / max_frequency)
+            )
+
+        ranked.append(
+            (suggestion_type, word, rank_score)
+        )
+
+     ranked.sort(
+        key=lambda item: (-item[2], item[1])
+     )
+
+     return ranked

@@ -97,9 +97,14 @@ for user_input in test_inputs:
 
     suggestions = engine.suggest(user_input)
 
+    suggestions = engine.rank_suggestions(suggestions)
+
     for suggestion_type, word, score in suggestions:
 
-        print(f"{suggestion_type}: {word} ({score})")
+     print(
+        f"{suggestion_type}: {word} "
+        f"(confidence: {score:.4f})"
+     )
 
 # Test word completion
 prefix = "pro"
