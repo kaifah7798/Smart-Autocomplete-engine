@@ -5,186 +5,50 @@ from preprocessing.tokenizer import load_corpus
 from models.ngram import NGramModel
 
 from prediction.trie import Trie
-
-from prediction.edit_distance import levenshtein_distance
-
 from prediction.suggestion_engine import SuggestionEngine
-
 from prediction.user_profile import UserProfile
 
 from interface.terminal import TerminalInterface
 
-# Locate dataset
-dataset_path = Path(__file__).parent / "dataset" / "training.txt"
 
+def main():
 
-# Load dataset
-sentences = load_corpus(dataset_path)
+    base_path = Path(__file__).parent
 
+    # Load training dataset
+    dataset_path = base_path / "dataset" / "training.txt"
+    sentences = load_corpus(dataset_path)
 
-# Create and train model
-model = NGramModel()
-model.train(sentences)
+    if not sentences:
+        print("Error: Training dataset is empty.")
+        return
 
+    # Train language model
+    model = NGramModel()
+    model.train(sentences)
+   
+    # Build Trie
+    trie = Trie()
 
-# Bigram prediction
-print("\nBIGRAM PREDICTIONS")
+    for word in model.unigram_counts:
+        trie.insert(word)
 
-bigram_predictions = model.predict("love")
+    # Load user profile
+    profile_path = base_path / "dataset" / "user_profile.json"
+    profile = UserProfile(profile_path)
 
-for word, probability in bigram_predictions:
-    print(f"{word}: {probability:.2%}")
-
-
-# Trigram prediction
-print("\nTRIGRAM PREDICTIONS")
-
-trigram_predictions = model.predict_trigram("i", "love")
-
-for word, probability in trigram_predictions:
-    print(f"{word}: {probability:.2%}")
-
-
-# Test backoff
-
-
-# Test 1: Trigram
-context = ["i", "love"]
-
-print("\nTEST 1: TRIGRAM")
-print(model.predict_with_backoff(context))
-
-
-# Test 2: Bigram fallback
-context = ["unknown", "love"]
-
-print("\nTEST 2: BIGRAM FALLBACK")
-print(model.predict_with_backoff(context))
-
-
-# Test 3: Unigram fallback
-context = ["unknown"]
-
-print("\nTEST 3: UNIGRAM FALLBACK")
-print(model.predict_with_backoff(context))
-
-
-print("\nSMOOTHED PREDICTIONS")
-
-context = ["i", "love"]
-
-predictions = model.predict_smoothed(context)
-
-for word, probability in predictions:
-    print(f"{word}: {probability:.2%}")
-
-
-# Create Trie
-trie = Trie()
-
-# Insert all unique words from training data
-for word in model.unigram_counts:
-    trie.insert(word)
-
-# Create unified suggestion engine
-# Load user profile
-profile_path = Path(__file__).parent / "dataset" / "user_profile.json"
-
-profile = UserProfile(profile_path)
-
-# Create personalized suggestion engine
-engine = SuggestionEngine(
-    model,
-    trie,
-    profile=profile,
-    personalization_weight=0.3
-)
-
-test_inputs = [
-    "I love ",
-    "I love pro",
-    "I love pythn"
-]
-
-for user_input in test_inputs:
-
-    print(f"\nINPUT: {user_input!r}")
-
-    suggestions = engine.suggest(user_input)
-
-    suggestions = engine.rank_suggestions(suggestions)
-
-    for suggestion_type, word, score in suggestions:
-
-     print(
-        f"{suggestion_type}: {word} "
-        f"(confidence: {score:.4f})"
-     )
-
-# Test word completion
-prefix = "pro"
-
-suggestions = trie.search_prefix(prefix)
-
-# Rank suggestions by word frequency
-suggestions.sort(
-    key=lambda word: (-model.unigram_counts[word], word)
-)
-
-print("\nWORD COMPLETION")
-
-for word in suggestions[:5]:
-    print(f"{word}: {model.unigram_counts[word]}")
-
-
-# Spelling correction
-
-input_word = "pythn"
-
-corrections = []
-
-for word in model.unigram_counts:
-
-    distance = levenshtein_distance(input_word, word)
-
-    if distance <= 2:
-
-        corrections.append(
-            (word, distance, model.unigram_counts[word])
-        )
-
-# Sort by edit distance, then word frequency
-corrections.sort(
-    key=lambda item: (item[1], -item[2])
-)
-
-print("\nSPELLING CORRECTIONS")
-
-for word, distance, frequency in corrections[:5]:
-
-    print(
-        f"{word}: distance={distance}, frequency={frequency}"
+    # Initialize suggestion engine
+    engine = SuggestionEngine(
+        model,
+        trie,
+        profile=profile,
+        personalization_weight=0.3
     )
 
+    # Launch application
+    app = TerminalInterface(engine, profile)
+    app.start()
 
 
-
-
-from prediction.user_profile import UserProfile
-
-profile_path = Path(__file__).parent / "dataset" / "user_profile.json"
-
-profile = UserProfile(profile_path)
-
-
-
-print("\nUSER PROFILE")
-
-for word, count in profile.word_counts.items():
-    print(f"{word}: {count}")
-
-
-# Start interactive interface
-app = TerminalInterface(engine, profile)
-
-app.start()
+if __name__ == "__main__":
+    main()
