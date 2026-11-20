@@ -5,11 +5,15 @@ from prediction.edit_distance import levenshtein_distance
 
 class SuggestionEngine:
 
-    def __init__(self, model, trie):
-        self.model = model
-        self.trie = trie
+   def __init__(self, model, trie, profile=None, personalization_weight=0.3):
 
-    def suggest(self, text, limit=5):
+    self.model = model
+    self.trie = trie
+    self.profile = profile
+
+    self.personalization_weight = personalization_weight
+
+   def suggest(self, text, limit=5):
 
         # Case 1: User has finished typing a word
         if text.endswith((" ", "\t", "\n")):
@@ -84,44 +88,76 @@ class SuggestionEngine:
             for word, distance, frequency in corrections[:limit]
         ]
 
-    def rank_suggestions(self, suggestions):
+    
+   def rank_suggestions(self, suggestions):
 
-     if not suggestions:
-        return []
+        if not suggestions:
+            return []
 
-     max_frequency = max(
+        max_frequency = max(
         self.model.unigram_counts.values(),
         default=1
-     )
-
-     ranked = []
-
-     for suggestion_type, word, score in suggestions:
-
-        if suggestion_type == "next_word":
-
-            rank_score = score
-
-        elif suggestion_type == "completion":
-
-            rank_score = score / max_frequency
-
-        elif suggestion_type == "correction":
-
-            distance = score
-            frequency = self.model.unigram_counts[word]
-
-            rank_score = (
-                (1 / (1 + distance)) *
-                (frequency / max_frequency)
-            )
-
-        ranked.append(
-            (suggestion_type, word, rank_score)
         )
 
-     ranked.sort(
-        key=lambda item: (-item[2], item[1])
-     )
+         # Calculate personal frequencies for candidates
 
-     return ranked
+        personal_frequencies = {}
+
+        if self.profile:
+
+            for suggestion_type, word, score in suggestions:
+
+                personal_frequencies[word] = (
+                    self.profile.get_frequency(word)
+                )
+
+        max_personal = max(
+        personal_frequencies.values(),
+        default=0
+        )
+
+        ranked = []
+
+        for suggestion_type, word, score in suggestions:
+
+            if suggestion_type == "next_word":
+                base_score = score
+
+            elif suggestion_type == "completion":
+                base_score = score / max_frequency
+
+            elif suggestion_type == "correction":
+
+                distance = score
+                frequency = self.model.unigram_counts[word]
+
+                base_score = (
+                    (1 / (1 + distance)) *
+                    (frequency / max_frequency)
+                )
+
+        # Apply personalization
+            if max_personal > 0:
+
+                personal_score = (
+                personal_frequencies[word] / max_personal
+                )
+
+                final_score = (
+                    (1 - self.personalization_weight) * base_score
+                    +
+                    self.personalization_weight * personal_score
+                )
+
+            else:
+                    final_score = base_score
+
+            ranked.append(
+                (suggestion_type, word, final_score)
+             )
+
+            ranked.sort(
+                key=lambda item: (-item[2], item[1])
+         )
+
+        return ranked

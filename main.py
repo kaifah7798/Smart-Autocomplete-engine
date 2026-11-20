@@ -10,6 +10,10 @@ from prediction.edit_distance import levenshtein_distance
 
 from prediction.suggestion_engine import SuggestionEngine
 
+from prediction.user_profile import UserProfile
+
+from interface.terminal import TerminalInterface
+
 # Locate dataset
 dataset_path = Path(__file__).parent / "dataset" / "training.txt"
 
@@ -83,7 +87,18 @@ for word in model.unigram_counts:
     trie.insert(word)
 
 # Create unified suggestion engine
-engine = SuggestionEngine(model, trie)
+# Load user profile
+profile_path = Path(__file__).parent / "dataset" / "user_profile.json"
+
+profile = UserProfile(profile_path)
+
+# Create personalized suggestion engine
+engine = SuggestionEngine(
+    model,
+    trie,
+    profile=profile,
+    personalization_weight=0.3
+)
 
 test_inputs = [
     "I love ",
@@ -150,3 +165,26 @@ for word, distance, frequency in corrections[:5]:
     print(
         f"{word}: distance={distance}, frequency={frequency}"
     )
+
+
+
+
+
+from prediction.user_profile import UserProfile
+
+profile_path = Path(__file__).parent / "dataset" / "user_profile.json"
+
+profile = UserProfile(profile_path)
+
+
+
+print("\nUSER PROFILE")
+
+for word, count in profile.word_counts.items():
+    print(f"{word}: {count}")
+
+
+# Start interactive interface
+app = TerminalInterface(engine, profile)
+
+app.start()
